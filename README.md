@@ -1,132 +1,191 @@
-### Yuxi
-#### Problems:
-* hdpoint_estimator is relatively slow for both ball queries and halfspace queries
-* 99th and 100th q-errors of region_tree_estimator for forest-2d-ball is bad, where est_sel is pretty close to zero (about 1e-16, 1e-17, ...) while sel usually lies in [0.0001, 0.001) (0.006 also comes up once)
-#### Todo list:
-* [1] Implement region_tree_estimator for 2D ball query, 2D half-space query
-* [1] Fix Isomer's bug that it only supports non-zero selectivity workload
-* [1] Generate mixture testset
-* [1] Implement mixture test for baseline, hdpoint, and region-tree
-* [1] Implement hdpoint_estimator for high-dimensional ball query
-* [1] Implement hdpoint_estimator for high-dimensional half-space query
-* [1] Correct the calculation of q-error
-* [1] Run hdpoint_estimator's experiments for Forest-4d/6d/8d/10d
-* [1] Modify 'driver_'/'_estimator' for efficiency test
-    - [1] rect
-    - [1] region_tree
-    - [1] hdpoint
-* [1] Check java_impl_card_est for efficiency test
-* [] Delete random seed in geometry.py
-* [] Think about the necessity of adding 'similarity' in our paper (experiments)
-* [] Read the manuscript
-* [] Correct the input formatting of 'DMV/Instacart' for rect. query in 'xDMV/' and 'xInstacart'
+# Selectivity Functions of Range Queries are Learnable
 
-#### Others :
-* Implement all the codes in Java
+## Project Structure
 
-#### Instructions used in experiments :
-##### High-dimentional points estimator :
-```bash
-python driver_hdpoint.py --dataset Forest-2d --query_type rect --threshold 0.1 --alpha 0.1 --output_pre hdpoint/forest_2d_0.1_a0.1
-python driver_hdpoint.py --dataset Forest-2d-data --query_type rect --threshold 0.1 --alpha 0.1 --output_pre hdpoint/new_forest_2d_0.1_a0.1
-python driver_hdpoint.py --dataset Forest-2d --query_type rect --threshold 0.1 --alpha 0.0 --output_pre hdpoint/forest_2d_0.1_a0.0
-python driver_hdpoint.py --dataset Forest-2d-data --query_type rect --threshold 0.1 --alpha 0.0 --output_pre hdpoint/new_forest_2d_0.1_a0.0
-python driver_hdpoint.py --dataset Forest-2d --query_type rect --threshold 0.05 --alpha 0.1 --output_pre hdpoint/forest_2d_0.05_a0.1
-python driver_hdpoint.py --dataset Forest-2d-data --query_type rect --threshold 0.05 --alpha 0.1 --output_pre hdpoint/new_forest_2d_0.05_a0.1
-python driver_hdpoint.py --dataset Forest-2d --query_type rect --threshold 0.05 --alpha 0.0 --output_pre hdpoint/forest_2d_0.05_a0.0
-python driver_hdpoint.py --dataset Forest-2d-data --query_type rect --threshold 0.05 --alpha 0.0 --output_pre hdpoint/new_forest_2d_0.05_a0.0
-python driver_hdpoint.py --dataset Forest-2d --query_type rect --threshold 0.01 --alpha 0.1 --output_pre hdpoint/forest_2d_0.01_a0.1
-python driver_hdpoint.py --dataset Forest-2d-data --query_type rect --threshold 0.01 --alpha 0.1 --output_pre hdpoint/new_forest_2d_0.01_a0.1
-python driver_hdpoint.py --dataset Forest-2d --query_type rect --threshold 0.01 --alpha 0.0 --output_pre hdpoint/forest_2d_0.01_a0.0
-python driver_hdpoint.py --dataset Forest-2d-data --query_type rect --threshold 0.01 --alpha 0.0 --output_pre hdpoint/new_forest_2d_0.01_a0.0
+In `/src`,
+
+1. `hdpoint` is correponding to __PtsHist__, while `region_tree` is for __QuadHist__.
+1. `driver_*.py` are the drivers for experiments, with different input parameters.
+1. `*_estimator.py` are the estimators, with `train()` and `evaluate()` as interfaces for their drivers.
+1. `utility.py` includes various data loaders, error metrics, and other shared tools for the estimators.
+1. `geometry.py` includes some geometric computations, like rectangle intersection.
+
+## Important Pieces
+
+We present the pseudo-codes of our algorithms' frameworks in the following.  
+
+### driver_*
+
+```
+load_data()
+estimator = build_estimator()
+estimator.train()
+estimator.evaluate()
+get_results()
 ```
 
-##### Efficiency test in Java :
+### region_tree_estimator (QuadHist)
 
-rectangle_estimator(baseline) :
-```bash
-Modify train_size_array in driver_rect.py firstly (delete 1000, 2000)
+```
+class RegionTreeEstimator:
+	...
+	def train():
+		tree = build_region_tree()
+		for train_data in train_list:
+			recursively_split(tree, train_data)
 
-[src/] python driver_rect.py --dataset Forest-2d --eff_test
-[src/java_impl_card_est/] java card_est 2 rect_Forest-2d_tr50_te100 assertion_forest_2d
-[src/java_impl_card_est/] java card_est 2 rect_Forest-2d_tr100_te100 assertion_forest_2d
-[src/java_impl_card_est/] java card_est 2 rect_Forest-2d_tr200_te100 assertion_forest_2d
-[src/java_impl_card_est/] java card_est 2 rect_Forest-2d_tr500_te100 assertion_forest_2d
+		build_equation_system()
+		solve()
 
-[src/] python driver_rect.py --dataset Forest-2d-data --eff_test
-[src/java_impl_card_est/] java card_est 2 rect_Forest-2d-data_tr50_te100 forest-data-2100-2d
-[src/java_impl_card_est/] java card_est 2 rect_Forest-2d-data_tr100_te100 forest-data-2100-2d
-[src/java_impl_card_est/] java card_est 2 rect_Forest-2d-data_tr200_te100 forest-data-2100-2d
-[src/java_impl_card_est/] java card_est 2 rect_Forest-2d-data_tr500_te100 forest-data-2100-2d
+	def evaluate():
+		for test_data in test_list:
+			calc(test_data)
+	...
+
 ```
 
-region-tree estimator :
-```bash
-Add 2000 to train_size_array if necessary
-Vary XXX in the instructions
+### hdpoint_estimator (PtsHist)
 
-[src/] python driver_region_tree.py --dataset Forest-2d-data --threshold 0.1 --eff_test
-[src/java_impl_card_est/] java card_est 2 region-tree_Forest-2d-data_splXXX_bXXX_trXXX_teXXX forest-data-2100-2d
-[src/] python driver_region_tree.py --dataset Forest-2d --threshold 0.1 --eff_test
-[src/java_impl_card_est/] java card_est 2 region-tree_Forest-2d_splXXX_bXXX_trXXX_teXXX assertion_forest_2d
+```
+class HDPointEstimator:
+	...
+	def train():
+		weighted_points = []
+		for train_data in train_list:
+			weighted_points.append(train_data.sample())
+
+		build_equation_system()
+		solve()
+
+	def evaluate():
+		for test_data in test_list:
+			calc(test_data)
+	...
+
 ```
 
-hdpoint estimator :
-```bash
-Vary XXX in the instructions
-threshold = 0.100000/0.050000/0.010000
-alpha = 0.000000/0.100000
+## Instructions
 
-[src/] python driver_hdpoint.py --dataset Forest-2d --query_type rect --threshold XXX --alpha XXX --eff_test
-[src/java_impl_card_est/] java card_est XXX hdpoint_Forest-2d_splXXX_aXXX_trXXX_te100 assertion_forest_2d
-[src/] python driver_hdpoint.py --dataset Forest-2d-data --query_type rect --threshold XXX --alpha XXX --eff_test
-[src/java_impl_card_est/] java card_est XXX hdpoint_Forest-2d-data_splXXX_aXXX_trXXX_te100 forest-data-2100-2d
+```
+# driver_region_tree.py
+# Vary XXX in the instruction, or use '--help' for hints
+python driver_region_tree.py --dataset XXX --query_type XXX --train_size XXX --threshold XXX --buckets_limit XXX --test_size XXX --solver XXX
 ```
 
-[baseline] ball estimator:
-```bash
-Please select appropriate training size
-python driver_ball.py --dataset Forest-2d
+```
+# driver_hdpoint.py
+# Vary XXX in the instruction, or use '--help' for hints
+python driver_hdpoint.py --dataset XXX --query_type XXX --train_size XXX --threshold XXX --buckets_limit XXX --alpha XXX --test_size XXX
 ```
 
-[baseline] halfspace estimator:
-```bash
-Please select appropriate training size
-python driver_halfspace.py --dataset Forest-2d --split poly
+To test other workloads, firstly add path and filename for both workload and min_max_range for data loaders in `utility.py`, place them in the corresponding position, and then add the new item into `--dataset []`. We will give more concrete examples in the released version.
+
+
+## Special Packages Requirement
+```
+scipy >= 1.7.2
+cvxopt >= 1.2.7 (if use)
+cplex >= 20.1.0.1 (and a license, if use)
+gurobipy >= 9.5.0 (and a license, if use)
 ```
 
-mixture dataset generator:
-```bash
-Code is /data/Mixture/mixer.py
-python mixer.py --dataset Forest
-python mixer.py --dataset Power
+## Example: Some Figures' Configuration
+### Figure 9
+```
+trainsize_buckets_threshold = {
+	50 : [
+		[100, 0.052],
+		[500, 0.012],
+		[1000, 0.0061],
+		[5000, 0.0015],
+		[10000, 0.0007]
+	],
+	200 : [
+		[100, 0.08],
+		[500, 0.018],
+		[1000, 0.0096],
+		[5000, 0.0021],
+		[10000, 0.0013]
+	],
+	500 : [
+		[100, 0.08],
+		[500, 0.0205],
+		[1000, 0.011],
+		[5000, 0.00267],
+		[10000, 0.0014]
+	],
+	1000 : [
+		[100, 0.11],
+		[500, 0.025],
+		[1000, 0.014],
+		[5000, 0.003],
+		[10000, 0.0017]
+	],
+	2000 : [
+		[100, 0.125],
+		[500, 0.03],
+		[1000, 0.016],
+		[5000, 0.0033],
+		[10000, 0.0019]
+	]
+}
+```
+Use triple (train_size, buckets_limit, threshold) as above in the following instruction
+```
+python3 drive_region_tree.py --dataset Power-2d-data --query_type rect --train_size XXX --threshold XXX --buckets_limit XXX --test_size 100 --solver nnls 
 ```
 
-**[DEPRECATED]** driver_mixtest.py:
-```bash
-python driver_mixtest.py
-Results are stored in ../results/Mixture/mixture_full.csv
+### Figure 27, 28, 26
 ```
-
-region_tree_estimator for 2d halfspace query and 2d ball query:
-```bash
-It seems like threshold = 0.1 is enough for accuracy
-python region_tree_estimator.py --dataset XXX --query_type halfspace --threshold XXX
-python region_tree_estimator.py --dataset XXX --query_type ball --threhold XXX
+trainsize_buckets_threshold = {
+    50 : [
+        [100, 0.052],
+        [500, 0.0105],
+        [1000, 0.0063],
+        [5000, 0.0015],
+        [10000, 0.0006],
+        [50000, 0.00015],
+        [100000, 0.00007]
+    ],
+    200 : [
+        [100, 0.08],
+        [500, 0.018],
+        [1000, 0.0096],
+        [5000, 0.0021],
+        [10000, 0.001],
+        [50000, 0.0002],
+        [100000, 0.0001]
+    ],
+    500 : [
+        [100, 0.08],
+        [500, 0.02],
+        [1000, 0.0105],
+        [5000, 0.0025],
+        [10000, 0.0014],
+        [50000, 0.0003],
+        [100000, 0.00015]
+    ],
+    1000 : [
+        [100, 0.11],
+        [500, 0.027],
+        [1000, 0.015],
+        [5000, 0.0031],
+        [10000, 0.0016],
+        [50000, 0.0004],
+        [100000, 0.00016]
+    ],
+    2000 : [
+        [100, 0.125],
+        [500, 0.031],
+        [1000, 0.016],
+        [5000, 0.0036],
+        [10000, 0.0019],
+        [50000, 0.0004],
+        [100000, 0.0002]
+    ]
+}
 ```
-
-mixture test:
-```bash
-python driver_mixture_test.py
+Use triple(train_size, buckets_limit, threshold) as above in the following instruction
 ```
-
-### Haibo
-#### dataset:
-```bash
-[data/workload/] and [data/workload/data_sensitive/] are for Quicksel and Isomer
-
-[data/HighD]: For baseline, quad-tree and hd-pointd methods
-1. assertion_NAME_'X'd.txt is random (old) workload
-2. NAME-data-10000-'X'd.txt is data-sensitive workload
+python3 driver_region_tree.py --dataset Power-2d-data --query_type rect --train_size XXX --buckets_limit XXX --threshold XXX --test_size 1000 --solver gurobi_linf
 ```
-# Selectivity
